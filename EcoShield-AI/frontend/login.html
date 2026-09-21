@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login - EcoShield AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="glass card center-col" style="width:100%;max-width:440px">
+      <a class="brand mb-3" href="index.html"><span class="logo">🛡️</span><span>EcoShield <span class="grad-text">AI</span></span></a>
+
+      <!-- Sign in -->
+      <div id="loginPane">
+        <h2>Welcome back</h2>
+        <p class="muted mb-3" style="font-size:.92rem">Sign in to your secure dashboard.</p>
+        <div id="msg"></div>
+        <form id="loginForm" novalidate>
+          <div class="field">
+            <label for="email">Email</label>
+            <input id="email" type="email" autocomplete="email" required maxlength="255" />
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input id="password" type="password" autocomplete="current-password" required />
+          </div>
+          <button class="btn btn-primary btn-block" type="submit" id="loginBtn">Sign in</button>
+        </form>
+        <div class="flex between mt-2" style="font-size:.9rem">
+          <a href="#" id="forgotLink">Forgot password?</a>
+          <a href="register.html">Create account</a>
+        </div>
+      </div>
+
+      <!-- MFA step -->
+      <div id="mfaPane" class="hidden">
+        <h2>Two-factor authentication</h2>
+        <p class="muted mb-3" style="font-size:.92rem">A high-risk sign-in or MFA is enabled. Enter your 6-digit authenticator code.</p>
+        <div id="mfaMsg"></div>
+        <form id="mfaForm">
+          <div class="field">
+            <label for="code">Authentication code</label>
+            <input id="code" inputmode="numeric" pattern="\d{6}" maxlength="6" placeholder="123456" required />
+          </div>
+          <button class="btn btn-cyber btn-block" type="submit">Verify</button>
+        </form>
+      </div>
+
+      <!-- Forgot password -->
+      <div id="forgotPane" class="hidden">
+        <h2>Reset password</h2>
+        <p class="muted mb-3" style="font-size:.92rem">We'll generate a reset token (emailed in production).</p>
+        <div id="forgotMsg"></div>
+        <form id="forgotForm">
+          <div class="field">
+            <label for="femail">Email</label>
+            <input id="femail" type="email" required />
+          </div>
+          <button class="btn btn-ghost btn-block" type="submit">Send reset token</button>
+        </form>
+        <div id="resetBox" class="hidden mt-2">
+          <div class="field"><label for="rtoken">Reset token</label><input id="rtoken" /></div>
+          <div class="field"><label for="npw">New password</label><input id="npw" type="password" minlength="8" /></div>
+          <button class="btn btn-primary btn-block" id="resetBtn">Reset password</button>
+        </div>
+        <p class="mt-2" style="text-align:center;font-size:.9rem"><a href="#" id="backToLogin">Back to sign in</a></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    const show = (id) => ["loginPane","mfaPane","forgotPane"].forEach(p => document.getElementById(p).classList.toggle("hidden", p !== id));
+    let pendingRole = "";
+
+    document.getElementById("forgotLink").addEventListener("click", (e) => { e.preventDefault(); show("forgotPane"); });
+    document.getElementById("backToLogin").addEventListener("click", (e) => { e.preventDefault(); show("loginPane"); });
+
+    document.getElementById("loginForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById("msg"); msg.innerHTML = "";
+      const btn = document.getElementById("loginBtn"); btn.disabled = true; btn.textContent = "Signing in...";
+      try {
+        const data = await API.login(document.getElementById("email").value.trim(), document.getElementById("password").value);
+        API.setToken(data.access_token, data.role);
+        pendingRole = data.role || "";
+        if (data.requires_mfa) { show("mfaPane"); }
+        else { location.href = (data.role === "USER") ? "dashboard.html" : "admin.html"; }
+      } catch (err) {
+        UI.alertBox(msg, "error", err.message);
+      } finally { btn.disabled = false; btn.textContent = "Sign in"; }
+    });
+
+    document.getElementById("mfaForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById("mfaMsg"); msg.innerHTML = "";
+      try {
+        const data = await API.post("/auth/mfa/verify", { code: document.getElementById("code").value.trim() });
+        API.setToken(data.access_token, data.role || pendingRole);
+        location.href = "dashboard.html";
+      } catch (err) { UI.alertBox(msg, "error", err.message); }
+    });
+
+    document.getElementById("forgotForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById("forgotMsg"); msg.innerHTML = "";
+      try {
+        const data = await API.post("/auth/forgot-password", { email: document.getElementById("femail").value.trim() }, { auth: false });
+        UI.alertBox(msg, "ok", data.message);
+        if (data.dev_reset_token) {
+          document.getElementById("rtoken").value = data.dev_reset_token;
+          document.getElementById("resetBox").classList.remove("hidden");
+        }
+      } catch (err) { UI.alertBox(msg, "error", err.message); }
+    });
+
+    document.getElementById("resetBtn").addEventListener("click", async () => {
+      const msg = document.getElementById("forgotMsg"); msg.innerHTML = "";
+      try {
+        const data = await API.post("/auth/reset-password", {
+          token: document.getElementById("rtoken").value.trim(),
+          new_password: document.getElementById("npw").value,
+        }, { auth: false });
+        UI.alertBox(msg, "ok", data.message);
+        setTimeout(() => { show("loginPane"); }, 1500);
+      } catch (err) {
+        let text = err.message;
+        if (err.data && err.data.detail && err.data.detail.feedback) text = err.data.detail.feedback.join(" ");
+        UI.alertBox(msg, "error", text);
+      }
+    });
+  </script>
+</body>
+</html>

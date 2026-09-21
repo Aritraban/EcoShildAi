@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Eco Assistant - EcoShield AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="nav" id="nav"></div>
+  <main class="container page">
+    <h1>EcoShield AI Assistant</h1>
+    <p class="muted mb-3">Ask about your footprint. The assistant only sees aggregate data — never your personal information.</p>
+
+    <div class="glass card" style="max-width:820px;margin:0 auto">
+      <div class="chat-box" id="chat"></div>
+      <form id="chatForm" class="flex gap-2 mt-2">
+        <input id="input" autocomplete="off" placeholder="e.g. How can I reduce my carbon footprint?" maxlength="2000" />
+        <button class="btn btn-primary" type="submit" id="sendBtn">Send</button>
+      </form>
+      <div class="flex gap-2 wrap mt-2">
+        <button class="btn btn-ghost" style="padding:7px 13px;font-size:.82rem" data-q="Why is my footprint high?">Why is my footprint high?</button>
+        <button class="btn btn-ghost" style="padding:7px 13px;font-size:.82rem" data-q="How much CO2 can I save by using public transport?">Savings from public transport?</button>
+        <button class="btn btn-ghost" style="padding:7px 13px;font-size:.82rem" data-q="What should I change first?">What should I change first?</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if (UI.requireAuth()) {
+      UI.renderNav("assistant");
+      const chat = document.getElementById("chat");
+      const input = document.getElementById("input");
+      function esc(s){ return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+      function addMsg(text, who) {
+        const el = document.createElement("div");
+        el.className = "msg " + who;
+        el.innerHTML = esc(text);
+        chat.appendChild(el);
+        chat.scrollTop = chat.scrollHeight;
+        return el;
+      }
+      addMsg("Hi! I'm the EcoShield AI Assistant. Ask me why your footprint is high, how to reduce it, or what to change first.", "bot");
+
+      async function send(message) {
+        if (!message.trim()) return;
+        addMsg(message, "user");
+        input.value = "";
+        const typing = addMsg("…", "bot");
+        try {
+          const r = await API.post("/ai/assistant", { message });
+          typing.innerHTML = esc(r.reply);
+        } catch (e) {
+          typing.innerHTML = esc("Sorry, I couldn't process that: " + e.message);
+        }
+        chat.scrollTop = chat.scrollHeight;
+      }
+
+      document.getElementById("chatForm").addEventListener("submit", (e) => { e.preventDefault(); send(input.value); });
+      document.querySelectorAll("[data-q]").forEach(b => b.addEventListener("click", () => send(b.dataset.q)));
+    }
+  </script>
+</body>
+</html>

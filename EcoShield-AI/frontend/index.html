@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="EcoShield AI - AI-powered carbon footprint calculator with a built-in cybersecurity monitoring layer." />
+  <title>EcoShield AI - Carbon Footprint & Cybersecurity</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="index.html"><span class="logo">🛡️</span><span>EcoShield <span class="grad-text">AI</span></span></a>
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="login.html">Login</a>
+        <a href="register.html" class="btn btn-primary" style="padding:8px 16px">Get Started</a>
+      </nav>
+    </div>
+  </div>
+
+  <header class="hero container">
+    <span class="badge ok mb-2"><span class="dot"></span>Environmental Tech · AI · Cybersecurity</span>
+    <h1>Measure your <span class="grad-text">carbon footprint</span><br />behind a shield of <span class="grad-text">AI security</span></h1>
+    <p class="muted mt-2" style="max-width:640px;margin-inline:auto;font-size:1.1rem">
+      EcoShield AI calculates your environmental impact across transport, energy, food, shopping and
+      waste — then predicts trends and recommends reductions. Every account is protected by anomaly-based
+      suspicious-login detection, audit logging, and role-based access control.
+    </p>
+    <div class="flex gap-3 center mt-3" style="justify-content:center">
+      <a href="register.html" class="btn btn-primary">Create free account</a>
+      <a href="login.html" class="btn btn-ghost">Sign in</a>
+    </div>
+    <p class="subtle mt-2" style="font-size:.82rem">Demo accounts: user@ecoshield.app / admin@ecoshield.app (see README)</p>
+  </header>
+
+  <section id="features" class="container" style="padding-bottom:70px">
+    <div class="grid cols-3">
+      <div class="glass card">
+        <div class="feature-icon">🌍</div>
+        <h3 class="mt-2">Carbon Calculator</h3>
+        <p class="muted" style="font-size:.92rem">Configurable emission factors across five impact categories, reported as daily, monthly and annual CO₂e.</p>
+      </div>
+      <div class="glass card">
+        <div class="feature-icon">🤖</div>
+        <h3 class="mt-2">AI Prediction & Advice</h3>
+        <p class="muted" style="font-size:.92rem">Forecast next month's footprint with uncertainty bands and get recommendations ranked by estimated savings.</p>
+      </div>
+      <div class="glass card">
+        <div class="feature-icon">🛡️</div>
+        <h3 class="mt-2">Security Monitoring</h3>
+        <p class="muted" style="font-size:.92rem">Anomaly detection flags suspicious logins with explainable risk scores, backed by deterministic rules and an audit trail.</p>
+      </div>
+      <div class="glass card">
+        <div class="feature-icon">💬</div>
+        <h3 class="mt-2">Eco Assistant</h3>
+        <p class="muted" style="font-size:.92rem">Ask a grounded chatbot about your data — it never sees your personal information or credentials.</p>
+      </div>
+      <div class="glass card">
+        <div class="feature-icon">🔐</div>
+        <h3 class="mt-2">Privacy by Design</h3>
+        <p class="muted" style="font-size:.92rem">Argon2id hashing, JWT sessions, RBAC, CSRF & rate limiting, data export and account deletion.</p>
+      </div>
+      <div class="glass card">
+        <div class="feature-icon">📊</div>
+        <h3 class="mt-2">Live Dashboards</h3>
+        <p class="muted" style="font-size:.92rem">Doughnut, bar and line charts for your footprint plus an admin security operations view.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="container subtle" style="padding:24px 0 40px;text-align:center;font-size:.85rem">
+    EcoShield AI — a B.Sc Cyber Security demonstration project. Emission factors are illustrative and admin-configurable.
+  </footer>
+</body>
+</html>

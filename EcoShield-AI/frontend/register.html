@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Register - EcoShield AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="glass card center-col" style="width:100%;max-width:460px">
+      <a class="brand mb-3" href="index.html"><span class="logo">🛡️</span><span>EcoShield <span class="grad-text">AI</span></span></a>
+      <h2>Create your account</h2>
+      <p class="muted mb-3" style="font-size:.92rem">Start measuring and protecting your footprint.</p>
+
+      <div id="msg"></div>
+
+      <form id="registerForm" novalidate>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" type="email" autocomplete="email" required maxlength="255" />
+        </div>
+        <div class="field">
+          <label for="username">Username</label>
+          <input id="username" type="text" autocomplete="username" required minlength="3" maxlength="64" pattern="[a-zA-Z0-9_.-]+" />
+          <div class="hint">3-64 chars: letters, numbers, dot, dash, underscore.</div>
+        </div>
+        <div class="grid cols-2">
+          <div class="field">
+            <label for="full_name">Full name</label>
+            <input id="full_name" type="text" maxlength="120" />
+          </div>
+          <div class="field">
+            <label for="country">Country</label>
+            <input id="country" type="text" maxlength="80" placeholder="India" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="new-password" required minlength="8" />
+          <div class="progress mt-1"><span id="strengthBar" style="width:0%"></span></div>
+          <div class="hint" id="strengthText">Min 8 chars with upper, lower and a digit.</div>
+        </div>
+        <div class="field">
+          <label for="confirm">Confirm password</label>
+          <input id="confirm" type="password" autocomplete="new-password" required />
+        </div>
+        <button class="btn btn-primary btn-block" type="submit" id="submitBtn">Create account</button>
+      </form>
+      <p class="muted mt-2" style="text-align:center;font-size:.9rem">Already registered? <a href="login.html">Sign in</a></p>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    const form = document.getElementById("registerForm");
+    const msg = document.getElementById("msg");
+    const pw = document.getElementById("password");
+    const bar = document.getElementById("strengthBar");
+    const strengthText = document.getElementById("strengthText");
+
+    function localStrength(v) {
+      let s = 0;
+      if (v.length >= 8) s++;
+      if (v.length >= 12) s++;
+      if (/[A-Z]/.test(v)) s++;
+      if (/[a-z]/.test(v) && /\d/.test(v)) s++;
+      if (/[^A-Za-z0-9]/.test(v)) s++;
+      return Math.min(s, 4);
+    }
+    pw.addEventListener("input", () => {
+      const s = localStrength(pw.value);
+      bar.style.width = (s / 4 * 100) + "%";
+      bar.style.background = s >= 3 ? "linear-gradient(90deg,#34d399,#22d3ee)" : "linear-gradient(90deg,#fbbf24,#f87171)";
+      strengthText.textContent = ["Very weak", "Weak", "Fair", "Strong", "Very strong"][s];
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      msg.innerHTML = "";
+      if (pw.value !== document.getElementById("confirm").value) {
+        UI.alertBox(msg, "error", "Passwords do not match."); return;
+      }
+      const btn = document.getElementById("submitBtn");
+      btn.disabled = true; btn.textContent = "Creating...";
+      try {
+        await API.register({
+          email: document.getElementById("email").value.trim(),
+          username: document.getElementById("username").value.trim(),
+          password: pw.value,
+          full_name: document.getElementById("full_name").value.trim() || null,
+          country: document.getElementById("country").value.trim() || null,
+        });
+        UI.alertBox(msg, "ok", "Account created! Redirecting to login...");
+        setTimeout(() => location.href = "login.html", 1200);
+      } catch (err) {
+        let text = err.message;
+        if (err.data && err.data.detail && err.data.detail.feedback) text = err.data.detail.feedback.join(" ");
+        UI.alertBox(msg, "error", text);
+        btn.disabled = false; btn.textContent = "Create account";
+      }
+    });
+  </script>
+</body>
+</html>

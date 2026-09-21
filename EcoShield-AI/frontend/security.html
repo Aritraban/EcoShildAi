@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Security Center - EcoShield AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="nav" id="nav"></div>
+  <main class="container page">
+    <h1>Security Center</h1>
+    <p class="muted mb-3">Your account protection status, login history and security alerts.</p>
+
+    <div class="grid cols-4 mb-3">
+      <div class="glass card"><div class="stat-label">Account status</div><div class="stat-value" id="status">—</div></div>
+      <div class="glass card"><div class="stat-label">Failed logins</div><div class="stat-value" id="failed">—</div></div>
+      <div class="glass card"><div class="stat-label">Open alerts</div><div class="stat-value" id="alerts">—</div></div>
+      <div class="glass card"><div class="stat-label">High-risk events</div><div class="stat-value" id="high">—</div></div>
+    </div>
+
+    <div class="grid cols-2">
+      <div class="glass card">
+        <h3 class="mb-2">Two-factor authentication</h3>
+        <p class="muted" style="font-size:.9rem" id="mfaState">Loading…</p>
+        <div id="mfaSetup" class="mt-2 hidden">
+          <div class="field"><label>Secret (add to your authenticator app)</label><input id="mfaSecret" readonly /></div>
+          <div class="field"><label>Confirm with a 6-digit code</label><input id="mfaCode" inputmode="numeric" maxlength="6" /></div>
+          <button class="btn btn-cyber" id="mfaConfirm">Verify & enable</button>
+        </div>
+        <div class="flex gap-2 mt-2">
+          <button class="btn btn-primary" id="mfaEnable">Enable MFA</button>
+          <button class="btn btn-danger hidden" id="mfaDisable">Disable MFA</button>
+        </div>
+      </div>
+
+      <div class="glass card">
+        <h3 class="mb-2">Report suspicious activity</h3>
+        <div id="reportMsg"></div>
+        <div class="field"><label>Event type</label>
+          <select id="repType"><option>Unknown login</option><option>Phishing attempt</option><option>Unexpected data change</option><option>Other</option></select></div>
+        <div class="field"><label>Description</label><textarea id="repDesc" rows="3" maxlength="2000"></textarea></div>
+        <button class="btn btn-ghost" id="repBtn">Submit report</button>
+      </div>
+    </div>
+
+    <div class="glass card mt-3">
+      <h3 class="mb-2">Security events</h3>
+      <div id="events"></div>
+    </div>
+
+    <div class="glass card mt-3">
+      <h3 class="mb-2">Login history</h3>
+      <div id="logins" style="overflow-x:auto"></div>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if (UI.requireAuth()) {
+      UI.renderNav("security");
+      function esc(s){ return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+
+      async function loadStatus() {
+        const s = await API.get("/security/status");
+        const cls = s.account_status === "PROTECTED" ? "ok" : (s.account_status === "LOCKED" ? "danger" : "warn");
+        document.getElementById("status").innerHTML = `<span class="badge ${cls}"><span class="dot"></span>${s.account_status}</span>`;
+        document.getElementById("failed").textContent = s.failed_logins;
+        document.getElementById("alerts").textContent = s.open_alerts;
+        document.getElementById("high").textContent = s.high_risk_events;
+        document.getElementById("mfaState").textContent = s.mfa_enabled ? "MFA is enabled. Your account has an extra layer of protection." : "MFA is disabled. Enable it to protect against suspicious logins.";
+        document.getElementById("mfaEnable").classList.toggle("hidden", s.mfa_enabled);
+        document.getElementById("mfaDisable").classList.toggle("hidden", !s.mfa_enabled);
+      }
+
+      async function loadEvents() {
+        const { events } = await API.get("/security/events");
+        document.getElementById("events").innerHTML = events.length ? `
+          <table><thead><tr><th>When</th><th>Event</th><th>Risk</th><th>Severity</th><th>Reason</th><th>Action</th></tr></thead>
+          <tbody>${events.map(e => `<tr><td>${UI.date(e.created_at)}</td><td>${esc(e.event_type)}</td><td>${e.risk_score}</td><td>${UI.severityBadge(e.severity)}</td><td>${esc(e.reason)}</td><td>${esc(e.action||"—")}</td></tr>`).join("")}</tbody></table>`
+          : `<p class="muted">No security events. Your account looks clean.</p>`;
+      }
+
+      async function loadLogins() {
+        const { logins } = await API.get("/security/login-history");
+        document.getElementById("logins").innerHTML = logins.length ? `
+          <table><thead><tr><th>When</th><th>Result</th><th>IP</th><th>Country</th><th>Device</th><th>Browser</th><th>Risk</th></tr></thead>
+          <tbody>${logins.map(l => `<tr><td>${UI.date(l.created_at)}</td><td>${l.success ? '<span class="badge ok">OK</span>' : '<span class="badge danger">FAILED</span>'}</td><td>${esc(l.ip_address||"—")}</td><td>${esc(l.country||"—")}</td><td>${esc(l.device_type||"—")}</td><td>${esc(l.browser||"—")}</td><td>${l.risk_score}</td></tr>`).join("")}</tbody></table>`
+          : `<p class="muted">No login history yet.</p>`;
+      }
+
+      document.getElementById("mfaEnable").addEventListener("click", async () => {
+        const r = await API.post("/auth/mfa/enable", {});
+        document.getElementById("mfaSecret").value = r.secret;
+        document.getElementById("mfaSetup").classList.remove("hidden");
+      });
+      document.getElementById("mfaConfirm").addEventListener("click", async () => {
+        try {
+          await API.post("/auth/mfa/verify", { code: document.getElementById("mfaCode").value.trim() });
+          document.getElementById("mfaSetup").classList.add("hidden");
+          await loadStatus();
+          UI.alertBox(document.getElementById("mfaSetup"), "ok", "MFA enabled");
+        } catch (e) { alert(e.message); }
+      });
+      document.getElementById("mfaDisable").addEventListener("click", async () => {
+        await API.post("/auth/mfa/disable", {}); await loadStatus();
+      });
+
+      document.getElementById("repBtn").addEventListener("click", async () => {
+        const msg = document.getElementById("reportMsg"); msg.innerHTML = "";
+        try {
+          await API.post("/security/report", { event_type: document.getElementById("repType").value, description: document.getElementById("repDesc").value });
+          UI.alertBox(msg, "ok", "Report submitted. Thank you.");
+          document.getElementById("repDesc").value = "";
+          loadEvents();
+        } catch (e) { UI.alertBox(msg, "error", e.message); }
+      });
+
+      (async () => { await loadStatus(); await loadEvents(); await loadLogins(); })();
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin - EcoShield AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="nav" id="nav"></div>
+  <main class="container page">
+    <div class="flex between center wrap gap-2 mb-3">
+      <div><h1>Admin & Security Console</h1><p class="muted">System statistics, user management, emission factors and the audit trail.</p></div>
+      <div id="sysStatus"></div>
+    </div>
+
+    <div class="flex gap-2 wrap mb-3" id="tabs">
+      <button class="btn btn-ghost" data-tab="overview">Overview</button>
+      <button class="btn btn-ghost" data-tab="users">Users</button>
+      <button class="btn btn-ghost" data-tab="factors">Emission Factors</button>
+      <button class="btn btn-ghost" data-tab="security">Security Events</button>
+      <button class="btn btn-ghost" data-tab="audit">Audit Logs</button>
+    </div>
+
+    <div id="msg"></div>
+
+    <!-- Overview -->
+    <section id="overview" class="tabpane">
+      <div class="grid cols-4 mb-3" id="statCards"></div>
+      <div class="glass card"><h3 class="mb-2">Security posture</h3><div id="posture"></div></div>
+    </section>
+
+    <!-- Users -->
+    <section id="users" class="tabpane hidden">
+      <div class="glass card"><div id="usersTable" style="overflow-x:auto"></div></div>
+    </section>
+
+    <!-- Factors -->
+    <section id="factors" class="tabpane hidden">
+      <div class="glass card">
+        <p class="muted mb-2" style="font-size:.9rem">Edit emission factors. Changes apply immediately to new calculations. All edits are audited.</p>
+        <div id="factorsWrap" style="overflow-x:auto"></div>
+      </div>
+    </section>
+
+    <!-- Security events -->
+    <section id="security" class="tabpane hidden">
+      <div class="glass card"><div id="secWrap" style="overflow-x:auto"></div></div>
+    </section>
+
+    <!-- Audit -->
+    <section id="audit" class="tabpane hidden">
+      <div class="glass card mb-3">
+        <div class="flex between center wrap gap-2">
+          <h3>Append-only audit trail (hash-chained)</h3>
+          <button class="btn btn-ghost" id="verifyBtn">Verify integrity</button>
+        </div>
+        <div id="verifyResult" class="mt-2"></div>
+      </div>
+      <div class="glass card"><div id="auditWrap" style="overflow-x:auto"></div></div>
+    </section>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if (UI.requireStaff()) {
+      UI.renderNav("admin");
+      const msg = document.getElementById("msg");
+      const isSecAdmin = API.getRole() === "SECURITY_ADMIN";
+      function esc(s){ return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+
+      document.querySelectorAll("#tabs .btn").forEach(b => b.addEventListener("click", () => {
+        document.querySelectorAll("#tabs .btn").forEach(x => x.classList.remove("btn-primary"));
+        b.classList.add("btn-primary");
+        document.querySelectorAll(".tabpane").forEach(p => p.classList.add("hidden"));
+        document.getElementById(b.dataset.tab).classList.remove("hidden");
+      }));
+      document.querySelector('#tabs .btn[data-tab="overview"]').classList.add("btn-primary");
+
+      async function loadOverview() {
+        const s = await API.get("/admin/stats");
+        const cls = s.system_status === "PROTECTED" ? "ok" : (s.system_status === "ELEVATED" ? "danger" : "warn");
+        document.getElementById("sysStatus").innerHTML = `<span class="badge ${cls}"><span class="dot"></span>System: ${s.system_status}</span>`;
+        const cards = [["Total users", s.total_users], ["Active sessions", s.active_sessions], ["Failed logins", s.failed_logins], ["Suspicious logins", s.suspicious_logins], ["High-risk events", s.high_risk_events], ["Blocked IPs", s.blocked_ips], ["Open alerts", s.security_alerts]];
+        document.getElementById("statCards").innerHTML = cards.map(([l, v]) =>
+          `<div class="glass card"><div class="stat-label">${l}</div><div class="stat-value">${v}</div></div>`).join("");
+        const logs = (s.recent_audit_logs || []).slice(0, 8);
+        document.getElementById("posture").innerHTML = logs.length ? `<table><thead><tr><th>When</th><th>Event</th><th>User</th><th>Result</th><th>Risk</th></tr></thead><tbody>${logs.map(l =>
+          `<tr><td>${UI.date(l.created_at)}</td><td>${esc(l.event)}</td><td>${l.user_id ?? "—"}</td><td>${esc(l.result)}</td><td>${UI.severityBadge(l.risk_level)}</td></tr>`).join("")}</tbody></table>` : `<p class="muted">No audit logs yet.</p>`;
+      }
+
+      async function loadUsers() {
+        const { users } = await API.get("/admin/users");
+        document.getElementById("usersTable").innerHTML = `<table><thead><tr><th>ID</th><th>Email</th><th>Username</th><th>Role</th><th>Active</th><th>Locked</th><th>Actions</th></tr></thead><tbody>${users.map(u => `
+          <tr>
+            <td>${u.id}</td><td>${esc(u.email)}</td><td>${esc(u.username)}</td>
+            <td><select data-role="${u.id}">${["USER","ADMIN","SECURITY_ADMIN"].map(r=>`<option ${r===u.role?"selected":""}>${r}</option>`).join("")}</select></td>
+            <td>${u.is_active ? '<span class="badge ok">yes</span>' : '<span class="badge danger">no</span>'}</td>
+            <td>${u.locked_until ? '<span class="badge warn">locked</span>' : "—"}</td>
+            <td>
+              <button class="btn btn-ghost" style="padding:5px 10px;font-size:.8rem" data-save="${u.id}">Save role</button>
+              <button class="btn btn-ghost" style="padding:5px 10px;font-size:.8rem" data-toggle="${u.id}" data-active="${u.is_active}">${u.is_active ? "Disable" : "Enable"}</button>
+              ${u.locked_until ? `<button class="btn btn-ghost" style="padding:5px 10px;font-size:.8rem" data-unblock="${u.id}">Unblock</button>` : ""}
+            </td>
+          </tr>`).join("")}</tbody></table>`;
+
+        document.querySelectorAll("[data-save]").forEach(b => b.addEventListener("click", async () => {
+          const id = b.dataset.save; const role = document.querySelector(`[data-role="${id}"]`).value;
+          try { await API.patch(`/admin/users/${id}`, { role }); UI.alertBox(msg, "ok", "User role updated."); loadOverview(); } catch (e) { UI.alertBox(msg, "error", e.message); }
+        }));
+        document.querySelectorAll("[data-toggle]").forEach(b => b.addEventListener("click", async () => {
+          const id = b.dataset.toggle; const active = b.dataset.active !== "true";
+          try { await API.patch(`/admin/users/${id}`, { is_active: active }); loadUsers(); loadOverview(); } catch (e) { UI.alertBox(msg, "error", e.message); }
+        }));
+        document.querySelectorAll("[data-unblock]").forEach(b => b.addEventListener("click", async () => {
+          try { await API.post(`/admin/security/unblock/${b.dataset.unblock}`, {}); UI.alertBox(msg, "ok", "User unblocked."); loadUsers(); } catch (e) { UI.alertBox(msg, "error", e.message); }
+        }));
+      }
+
+      async function loadFactors() {
+        const { factors } = await API.get("/admin/emission-factors");
+        document.getElementById("factorsWrap").innerHTML = `<table><thead><tr><th>Category</th><th>Key</th><th>Value</th><th>Unit</th><th>Source</th><th></th></tr></thead><tbody>${factors.map(f => `
+          <tr>
+            <td>${esc(f.category)}</td><td>${esc(f.key)}</td>
+            <td><input type="number" step="0.0001" min="0" value="${f.value}" data-fv="${f.id}" style="width:120px;padding:6px 8px" /></td>
+            <td class="subtle">${esc(f.unit)}</td><td class="subtle">${esc(f.source||"")}</td>
+            <td><button class="btn btn-ghost" style="padding:5px 10px;font-size:.8rem" data-savefactor="${f.id}">Save</button></td>
+          </tr>`).join("")}</tbody></table>`;
+        document.querySelectorAll("[data-savefactor]").forEach(b => b.addEventListener("click", async () => {
+          const id = b.dataset.savefactor; const value = Number(document.querySelector(`[data-fv="${id}"]`).value);
+          try { await API.put(`/admin/emission-factors/${id}`, { value }); UI.alertBox(msg, "ok", "Emission factor updated."); } catch (e) { UI.alertBox(msg, "error", e.message); }
+        }));
+      }
+
+      async function loadSecurity() {
+        const { events } = await API.get("/admin/security/events");
+        document.getElementById("secWrap").innerHTML = events.length ? `<table><thead><tr><th>When</th><th>Event</th><th>User</th><th>Risk</th><th>Severity</th><th>Reason</th><th>Action</th><th>Status</th></tr></thead><tbody>${events.map(e => `
+          <tr>
+            <td>${UI.date(e.created_at)}</td><td>${esc(e.event_type)}</td><td>${e.user_id ?? "—"}</td><td>${e.risk_score}</td>
+            <td>${UI.severityBadge(e.severity)}</td><td style="max-width:280px">${esc(e.reason)}</td><td>${esc(e.action||"—")}</td>
+            <td>${e.resolved ? '<span class="badge ok">resolved</span>' : (isSecAdmin ? `<button class="btn btn-ghost" style="padding:5px 10px;font-size:.8rem" data-resolve="${e.id}">Resolve</button>${e.user_id?`<button class="btn btn-danger" style="padding:5px 10px;font-size:.8rem;margin-left:6px" data-block="${e.user_id}">Block</button>`:""}` : '<span class="badge warn">open</span>')}</td>
+          </tr>`).join("")}</tbody></table>` : `<p class="muted">No security events.</p>`;
+
+        document.querySelectorAll("[data-resolve]").forEach(b => b.addEventListener("click", async () => {
+          try { await API.post(`/admin/security/events/${b.dataset.resolve}/resolve`, {}); UI.alertBox(msg, "ok", "Event resolved."); loadSecurity(); loadOverview(); } catch (e) { UI.alertBox(msg, "error", e.message); }
+        }));
+        document.querySelectorAll("[data-block]").forEach(b => b.addEventListener("click", async () => {
+          const mins = prompt("Block user for how many minutes?", "30"); if (!mins) return;
+          try { await API.post(`/admin/security/block/${b.dataset.block}`, { minutes: Number(mins), reason: "Blocked from admin console" }); UI.alertBox(msg, "ok", "User blocked."); loadOverview(); } catch (e) { UI.alertBox(msg, "error", e.message); }
+        }));
+      }
+
+      async function loadAudit() {
+        const { logs } = await API.get("/admin/audit-logs?limit=100");
+        document.getElementById("auditWrap").innerHTML = `<table><thead><tr><th>When</th><th>Event</th><th>User</th><th>IP</th><th>Result</th><th>Risk</th><th>Hash</th></tr></thead><tbody>${logs.map(l => `
+          <tr><td>${UI.date(l.created_at)}</td><td>${esc(l.event)}</td><td>${l.user_id ?? "—"}</td><td>${esc(l.ip_address||"—")}</td><td>${esc(l.result)}</td><td>${UI.severityBadge(l.risk_level)}</td><td class="subtle" style="font-size:.72rem">${esc((l.integrity_hash||"").slice(0,12))}…</td></tr>`).join("")}</tbody></table>`;
+      }
+
+      document.getElementById("verifyBtn").addEventListener("click", async () => {
+        const box = document.getElementById("verifyResult"); box.innerHTML = "";
+        try {
+          const r = await API.get("/admin/audit-verify");
+          box.innerHTML = r.chain_valid ? `<div class="alert alert-ok">✔ Audit chain is intact — no tampering detected.</div>`
+            : `<div class="alert alert-error">✘ Audit chain broken at entry #${r.first_broken_id}. Possible tampering!</div>`;
+        } catch (e) { box.innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`; }
+      });
+
+      (async () => { await loadOverview(); await loadUsers(); await loadFactors(); await loadSecurity(); await loadAudit(); })();
+    }
+  </script>
+</body>
+</html>

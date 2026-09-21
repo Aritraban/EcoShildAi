@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Profile - EcoShield AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="nav" id="nav"></div>
+  <main class="container page">
+    <h1>Profile & Privacy</h1>
+    <p class="muted mb-3">Manage your details, password, privacy settings and data.</p>
+    <div id="msg"></div>
+
+    <div class="grid cols-2">
+      <div class="glass card">
+        <h3 class="mb-2">Profile details</h3>
+        <form id="profileForm">
+          <div class="field"><label>Email</label><input id="email" disabled /></div>
+          <div class="field"><label>Role</label><input id="role" disabled /></div>
+          <div class="field"><label>Full name</label><input id="full_name" maxlength="120" /></div>
+          <div class="grid cols-2">
+            <div class="field"><label>Country</label><input id="country" maxlength="80" /></div>
+            <div class="field"><label>City</label><input id="city" maxlength="80" /></div>
+          </div>
+          <div class="field"><label>Timezone</label><input id="timezone" maxlength="64" /></div>
+          <button class="btn btn-primary" type="submit">Save changes</button>
+        </form>
+      </div>
+
+      <div class="glass card">
+        <h3 class="mb-2">Privacy settings</h3>
+        <label class="flex center gap-2" style="margin-bottom:10px"><input type="checkbox" id="analytics_opt_in" style="width:auto" /> Allow anonymised analytics to improve predictions</label>
+        <label class="flex center gap-2" style="margin-bottom:16px"><input type="checkbox" id="data_sharing_enabled" style="width:auto" /> Enable aggregate data sharing</label>
+        <button class="btn btn-ghost" id="savePrivacy">Save privacy settings</button>
+
+        <hr style="border-color:rgba(255,255,255,.08);margin:20px 0" />
+        <h3 class="mb-2">Your data</h3>
+        <div class="flex gap-2 wrap">
+          <button class="btn btn-ghost" id="exportBtn">⬇ Export my data (JSON)</button>
+          <button class="btn btn-danger" id="deleteBtn">Delete account</button>
+        </div>
+        <p class="hint mt-1">Export never includes passwords, tokens or secrets.</p>
+      </div>
+
+      <div class="glass card">
+        <h3 class="mb-2">Change password</h3>
+        <form id="pwForm">
+          <div class="field"><label>Current password</label><input id="cur" type="password" required /></div>
+          <div class="field"><label>New password</label><input id="new" type="password" minlength="8" required /></div>
+          <button class="btn btn-primary" type="submit">Update password</button>
+        </form>
+      </div>
+
+      <div class="glass card">
+        <h3 class="mb-2">Notifications</h3>
+        <div id="notes"></div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if (UI.requireAuth()) {
+      UI.renderNav("profile");
+      const msg = document.getElementById("msg");
+      function esc(s){ return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+
+      async function load() {
+        const me = await API.get("/auth/me");
+        document.getElementById("email").value = me.email;
+        document.getElementById("role").value = me.role;
+        const p = await API.get("/profile");
+        ["full_name","country","city","timezone"].forEach(k => { if (p[k] != null) document.getElementById(k).value = p[k]; });
+        document.getElementById("analytics_opt_in").checked = !!p.analytics_opt_in;
+        document.getElementById("data_sharing_enabled").checked = !!p.data_sharing_enabled;
+        const { notifications } = await API.get("/profile/notifications");
+        document.getElementById("notes").innerHTML = notifications.length ? notifications.map(n =>
+          `<div style="padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06)">
+             <div class="flex between center">${UI.severityBadge(n.severity)}<span class="subtle" style="font-size:.75rem">${UI.date(n.created_at)}</span></div>
+             <strong style="font-size:.9rem">${esc(n.title)}</strong>
+             <p class="muted" style="font-size:.85rem;margin:2px 0 0">${esc(n.message)}</p>
+           </div>`).join("") : `<p class="muted">No notifications.</p>`;
+      }
+
+      document.getElementById("profileForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        try {
+          await API.put("/profile", {
+            full_name: document.getElementById("full_name").value || null,
+            country: document.getElementById("country").value || null,
+            city: document.getElementById("city").value || null,
+            timezone: document.getElementById("timezone").value || "UTC",
+          });
+          UI.alertBox(msg, "ok", "Profile saved.");
+        } catch (err) { UI.alertBox(msg, "error", err.message); }
+      });
+
+      document.getElementById("savePrivacy").addEventListener("click", async () => {
+        try {
+          await API.put("/profile", {
+            analytics_opt_in: document.getElementById("analytics_opt_in").checked,
+            data_sharing_enabled: document.getElementById("data_sharing_enabled").checked,
+          });
+          UI.alertBox(msg, "ok", "Privacy settings saved.");
+        } catch (err) { UI.alertBox(msg, "error", err.message); }
+      });
+
+      document.getElementById("pwForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        try {
+          await API.post("/auth/change-password", { current_password: document.getElementById("cur").value, new_password: document.getElementById("new").value });
+          UI.alertBox(msg, "ok", "Password updated.");
+          document.getElementById("cur").value = ""; document.getElementById("new").value = "";
+        } catch (err) {
+          let t = err.message; if (err.data?.detail?.feedback) t = err.data.detail.feedback.join(" ");
+          UI.alertBox(msg, "error", t);
+        }
+      });
+
+      document.getElementById("exportBtn").addEventListener("click", async () => {
+        const data = await API.get("/profile/export");
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = "ecoshield-data-export.json"; a.click();
+        URL.revokeObjectURL(a.href);
+      });
+
+      document.getElementById("deleteBtn").addEventListener("click", async () => {
+        if (!confirm("Permanently delete your account and all data? This cannot be undone.")) return;
+        try { await API.del("/profile"); API.clearToken(); location.href = "index.html"; }
+        catch (err) { UI.alertBox(msg, "error", err.message); }
+      });
+
+      load();
+    }
+  </script>
+</body>
+</html>

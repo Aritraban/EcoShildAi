@@ -1,0 +1,34 @@
+# --- Web framework ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# --- Data validation / settings ---
+pydantic==2.10.4
+pydantic-settings==2.7.0
+email-validator==2.2.0
+
+# --- Database ---
+SQLAlchemy==2.0.36
+# SQLite is used by default (no extra driver needed).
+# For PostgreSQL / MySQL uncomment the matching driver:
+# psycopg2-binary==2.9.10
+# PyMySQL==1.1.1
+
+# --- Security ---
+argon2-cffi==23.1.0
+bcrypt==4.2.1
+PyJWT==2.10.1
+
+# --- AI / analytics ---
+scikit-learn==1.6.0
+pandas==2.2.3
+numpy==2.2.1
+joblib==1.4.2
+
+# --- Optional: LLM-backed Eco Assistant ---
+# openai==1.58.1
+
+# --- Testing ---
+pytest==8.3.4
+httpx==0.28.1

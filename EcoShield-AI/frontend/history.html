@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Carbon History - EcoShield AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="nav" id="nav"></div>
+  <main class="container page">
+    <h1>Carbon History</h1>
+    <p class="muted mb-3">All your past calculations and how they trend over time.</p>
+
+    <div class="glass card mb-3">
+      <div class="chart-wrap"><canvas id="histChart"></canvas></div>
+    </div>
+
+    <div class="glass card">
+      <div id="tableWrap"></div>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if (UI.requireAuth()) {
+      UI.renderNav("history");
+      let chart;
+      (async () => {
+        try {
+          const data = await API.get("/carbon/history");
+          const recs = data.records || [];
+          if (!recs.length) {
+            document.getElementById("tableWrap").innerHTML = `<p class="muted">No records yet. <a href="calculator.html">Run a calculation</a>.</p>`;
+            return;
+          }
+          const ordered = recs.slice().reverse();
+          chart = new Chart(document.getElementById("histChart"), {
+            type: "line",
+            data: {
+              labels: ordered.map((_, i) => "R" + (i + 1)),
+              datasets: [{
+                label: "kg CO₂e (period total)",
+                data: ordered.map(r => r.kg_co2e),
+                borderColor: "#22d3ee", backgroundColor: "rgba(34,211,238,0.15)", fill: true, tension: .3, pointRadius: 3,
+              }],
+            },
+            options: {
+              plugins: { legend: { labels: { color: "#a7c9b8" } } },
+              scales: {
+                x: { ticks: { color: "#a7c9b8" }, grid: { color: "rgba(255,255,255,.05)" } },
+                y: { ticks: { color: "#a7c9b8" }, grid: { color: "rgba(255,255,255,.05)" }, beginAtZero: true },
+              },
+            },
+          });
+
+          const rows = recs.map(r => `
+            <tr>
+              <td>#${r.record_id}</td>
+              <td>${r.period}</td>
+              <td>${Number(r.kg_co2e).toFixed(1)}</td>
+              <td>${Number(r.monthly_co2e).toFixed(0)}</td>
+              <td>${Number(r.annual_co2e).toFixed(0)}</td>
+              <td>${r.breakdown.percentages.transport.toFixed(0)}/${r.breakdown.percentages.energy.toFixed(0)}/${r.breakdown.percentages.food.toFixed(0)}</td>
+            </tr>`).join("");
+          document.getElementById("tableWrap").innerHTML = `
+            <table>
+              <thead><tr><th>ID</th><th>Period</th><th>kg (period)</th><th>kg/mo</th><th>kg/yr</th><th>T/E/F %</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>`;
+        } catch (e) { console.error(e); }
+      })();
+    }
+  </script>
+</body>
+</html>

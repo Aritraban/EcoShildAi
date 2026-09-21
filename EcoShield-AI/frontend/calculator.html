@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Carbon Calculator - EcoShield AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="nav" id="nav"></div>
+  <main class="container page">
+    <h1>Carbon Footprint Calculator</h1>
+    <p class="muted mb-3">Enter your activity for the selected period. All emission factors are configurable by administrators.</p>
+
+    <div class="glass card mb-3">
+      <div class="field" style="max-width:260px">
+        <label for="period">Reporting period</label>
+        <select id="period">
+          <option value="MONTHLY" selected>Monthly</option>
+          <option value="DAILY">Daily</option>
+          <option value="ANNUAL">Annual</option>
+        </select>
+      </div>
+    </div>
+
+    <form id="calcForm">
+      <div class="grid cols-2">
+        <!-- Transportation -->
+        <div class="glass card">
+          <h3 class="mb-2">🚗 Transportation</h3>
+          <div class="grid cols-2">
+            <div class="field"><label>Vehicle type</label>
+              <select name="vehicle_type"><option value="car_petrol">Car (petrol)</option><option value="car_diesel">Car (diesel)</option><option value="motorbike">Motorbike</option><option value="ev">Electric car</option></select></div>
+            <div class="field"><label>Fuel type</label>
+              <select name="fuel_type"><option value="">—</option><option value="petrol">Petrol</option><option value="diesel">Diesel</option></select></div>
+          </div>
+          <div class="field"><label>Distance driven (km)</label><input type="number" name="distance_km" min="0" step="0.1" value="0" /></div>
+          <div class="field"><label>Fuel used (liters, optional)</label><input type="number" name="fuel_liters" min="0" step="0.1" value="0" /><div class="hint">If provided, fuel volume is used instead of distance.</div></div>
+          <div class="field"><label>Public transport (km)</label><input type="number" name="public_transport_km" min="0" step="0.1" value="0" /></div>
+          <div class="field"><label>Flights (km)</label><input type="number" name="flight_km" min="0" step="1" value="0" /></div>
+        </div>
+
+        <!-- Energy -->
+        <div class="glass card">
+          <h3 class="mb-2">⚡ Home Energy</h3>
+          <div class="field"><label>Electricity (kWh)</label><input type="number" name="electricity_kwh" min="0" step="0.1" value="0" /></div>
+          <div class="field"><label>LPG (kg)</label><input type="number" name="lpg_kg" min="0" step="0.1" value="0" /></div>
+          <div class="field"><label>Natural gas (m³)</label><input type="number" name="natural_gas_m3" min="0" step="0.1" value="0" /></div>
+          <div class="field"><label>AC usage (hours/day)</label><input type="number" name="ac_hours_per_day" min="0" max="24" step="0.5" value="0" /></div>
+          <div class="field"><label>Heating (kWh)</label><input type="number" name="heating_kwh" min="0" step="0.1" value="0" /></div>
+          <div class="field"><label>Renewable energy (kWh)</label><input type="number" name="renewable_kwh" min="0" step="0.1" value="0" /><div class="hint">Offsets grid electricity.</div></div>
+        </div>
+
+        <!-- Food -->
+        <div class="glass card">
+          <h3 class="mb-2">🥗 Food</h3>
+          <div class="field"><label>Diet type</label>
+            <select name="diet_type"><option value="mixed">Mixed</option><option value="pescatarian">Pescatarian</option><option value="vegetarian">Vegetarian</option><option value="vegan">Vegan</option></select></div>
+          <div class="field"><label>Meat meals / week</label><input type="number" name="meat_meals_per_week" min="0" step="0.5" value="0" /></div>
+          <div class="field"><label>Dairy meals / week</label><input type="number" name="dairy_meals_per_week" min="0" step="0.5" value="0" /></div>
+          <div class="field"><label>Food waste (kg)</label><input type="number" name="food_waste_kg" min="0" step="0.1" value="0" /></div>
+        </div>
+
+        <!-- Shopping -->
+        <div class="glass card">
+          <h3 class="mb-2">🛍️ Shopping</h3>
+          <div class="field"><label>Clothing spend</label><input type="number" name="clothing_spend" min="0" step="1" value="0" /></div>
+          <div class="field"><label>Electronics spend</label><input type="number" name="electronics_spend" min="0" step="1" value="0" /></div>
+          <div class="field"><label>Plastic items</label><input type="number" name="plastic_items" min="0" step="1" value="0" /></div>
+          <div class="field"><label>Online orders</label><input type="number" name="online_orders" min="0" step="1" value="0" /></div>
+        </div>
+
+        <!-- Waste -->
+        <div class="glass card" style="grid-column:1/-1">
+          <h3 class="mb-2">♻️ Waste</h3>
+          <div class="grid cols-3">
+            <div class="field"><label>Household waste (kg)</label><input type="number" name="household_waste_kg" min="0" step="0.1" value="0" /></div>
+            <div class="field"><label>Recycling (%)</label><input type="number" name="recycling_percent" min="0" max="100" step="1" value="0" /></div>
+            <div class="field"><label>Plastic waste (kg)</label><input type="number" name="plastic_waste_kg" min="0" step="0.1" value="0" /></div>
+            <div class="field"><label>Paper waste (kg)</label><input type="number" name="paper_waste_kg" min="0" step="0.1" value="0" /></div>
+            <div class="field"><label>Organic waste (kg)</label><input type="number" name="organic_waste_kg" min="0" step="0.1" value="0" /></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-2 mt-2">
+        <button type="submit" class="btn btn-primary" id="calcBtn">Calculate footprint</button>
+        <button type="button" class="btn btn-ghost" id="demoBtn">Fill sample data</button>
+      </div>
+      <div id="msg" class="mt-2"></div>
+    </form>
+
+    <div id="result" class="glass card mt-3 hidden">
+      <div class="flex between center wrap gap-2 mb-2">
+        <h2>Result</h2>
+        <div class="flex gap-3">
+          <div><div class="stat-label">Daily</div><div class="stat-value" id="rDaily">—</div></div>
+          <div><div class="stat-label">Monthly</div><div class="stat-value" id="rMonthly">—</div></div>
+          <div><div class="stat-label">Annual</div><div class="stat-value grad-text" id="rAnnual">—</div></div>
+        </div>
+      </div>
+      <div class="grid cols-2">
+        <div class="chart-wrap"><canvas id="resChart"></canvas></div>
+        <div>
+          <div id="resList"></div>
+          <details class="mt-2"><summary class="subtle" style="cursor:pointer">Emission factors used</summary><pre id="factors" class="subtle" style="font-size:.78rem;white-space:pre-wrap;margin-top:8px"></pre></details>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if (UI.requireAuth()) {
+      UI.renderNav("calculator");
+      const form = document.getElementById("calcForm");
+      let resChart;
+
+      document.getElementById("demoBtn").addEventListener("click", () => {
+        const sample = { distance_km: 650, public_transport_km: 90, flight_km: 0, electricity_kwh: 240, lpg_kg: 9, ac_hours_per_day: 3, meat_meals_per_week: 7, dairy_meals_per_week: 5, food_waste_kg: 4, clothing_spend: 1500, electronics_spend: 500, plastic_items: 20, online_orders: 6, household_waste_kg: 30, recycling_percent: 25, plastic_waste_kg: 5, paper_waste_kg: 4, organic_waste_kg: 8 };
+        for (const [k, v] of Object.entries(sample)) { const el = form.elements[k]; if (el) el.value = v; }
+      });
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const msg = document.getElementById("msg"); msg.innerHTML = "";
+        const btn = document.getElementById("calcBtn"); btn.disabled = true; btn.textContent = "Calculating...";
+        const f = form.elements;
+        const num = (n) => Number(f[n] ? f[n].value : 0) || 0;
+        const payload = {
+          period: document.getElementById("period").value,
+          transportation: { vehicle_type: f.vehicle_type.value, fuel_type: f.fuel_type.value || null, distance_km: num("distance_km"), distance_period: document.getElementById("period").value, fuel_liters: num("fuel_liters"), public_transport_km: num("public_transport_km"), flight_km: num("flight_km") },
+          energy: { electricity_kwh: num("electricity_kwh"), lpg_kg: num("lpg_kg"), natural_gas_m3: num("natural_gas_m3"), ac_hours_per_day: num("ac_hours_per_day"), heating_kwh: num("heating_kwh"), renewable_kwh: num("renewable_kwh") },
+          food: { diet_type: f.diet_type.value, meat_meals_per_week: num("meat_meals_per_week"), dairy_meals_per_week: num("dairy_meals_per_week"), food_waste_kg: num("food_waste_kg") },
+          shopping: { clothing_spend: num("clothing_spend"), electronics_spend: num("electronics_spend"), plastic_items: num("plastic_items"), online_orders: num("online_orders") },
+          waste: { household_waste_kg: num("household_waste_kg"), recycling_percent: num("recycling_percent"), plastic_waste_kg: num("plastic_waste_kg"), paper_waste_kg: num("paper_waste_kg"), organic_waste_kg: num("organic_waste_kg") },
+        };
+        try {
+          const r = await API.post("/carbon/calculate", payload);
+          showResult(r);
+          UI.alertBox(msg, "ok", "Footprint calculated and saved to your history.");
+        } catch (err) {
+          UI.alertBox(msg, "error", err.message);
+        } finally { btn.disabled = false; btn.textContent = "Calculate footprint"; }
+      });
+
+      const CATS = [["transport","Transportation","#34d399"],["energy","Energy","#22d3ee"],["food","Food","#a78bfa"],["shopping","Shopping","#fbbf24"],["waste","Waste","#f87171"]];
+      function showResult(r) {
+        document.getElementById("result").classList.remove("hidden");
+        document.getElementById("rDaily").textContent = Number(r.daily_co2e).toFixed(1) + " kg";
+        document.getElementById("rMonthly").textContent = Number(r.monthly_co2e).toFixed(0) + " kg";
+        document.getElementById("rAnnual").textContent = UI.tons(r.annual_co2e);
+        const b = r.breakdown;
+        const data = CATS.map(c => Number(b[c[0]] || 0));
+        document.getElementById("resList").innerHTML = CATS.map((c,i) =>
+          `<div class="flex between" style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">
+             <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${c[2]};margin-right:8px"></span>${c[1]}</span>
+             <span class="muted">${data[i].toFixed(1)} kg (${(b.percentages[c[0]]||0).toFixed(1)}%)</span></div>`).join("") +
+          `<div class="flex between mt-2"><strong>Total</strong><strong class="grad-text">${Number(b.total).toFixed(1)} kg · ${r.tons_co2e} t</strong></div>`;
+        document.getElementById("factors").textContent = Object.entries(r.emission_factors_used || {}).map(([k,v]) => `${k} = ${v}`).join("\n");
+        resChart && resChart.destroy();
+        resChart = new Chart(document.getElementById("resChart"), {
+          type: "doughnut",
+          data: { labels: CATS.map(c=>c[1]), datasets: [{ data, backgroundColor: CATS.map(c=>c[2]), borderColor:"#05110c", borderWidth:2 }] },
+          options: { plugins: { legend: { position: "bottom", labels: { color: "#a7c9b8" } } }, cutout: "58%" },
+        });
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard - EcoShield AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="nav" id="nav"></div>
+
+  <main class="container page">
+    <div class="flex between center wrap gap-2 mb-3">
+      <div>
+        <h1>Your Carbon Dashboard</h1>
+        <p class="muted">Real-time footprint analytics and AI forecast.</p>
+      </div>
+      <div id="secStatus"></div>
+    </div>
+
+    <div id="empty" class="glass card hidden" style="text-align:center;padding:40px">
+      <h3>No footprint data yet</h3>
+      <p class="muted mt-1">Run your first calculation to unlock charts, predictions and AI advice.</p>
+      <a href="calculator.html" class="btn btn-primary mt-2">Open calculator</a>
+    </div>
+
+    <div id="content" class="hidden">
+      <!-- Stat cards -->
+      <div class="grid cols-4 mb-3">
+        <div class="glass card"><div class="stat-label">Annual footprint</div><div class="stat-value grad-text" id="annual">—</div><div class="subtle" id="annualKg"></div></div>
+        <div class="glass card"><div class="stat-label">Monthly footprint</div><div class="stat-value" id="monthly">—</div><div class="subtle">kg CO₂e / month</div></div>
+        <div class="glass card"><div class="stat-label">AI next month</div><div class="stat-value" id="forecast">—</div><div class="subtle" id="forecastBand"></div></div>
+        <div class="glass card"><div class="stat-label">Potential reduction</div><div class="stat-value" id="reduction">—</div><div class="subtle">estimated</div></div>
+      </div>
+
+      <div class="grid cols-2">
+        <div class="glass card">
+          <div class="section-title"><h3>Breakdown by category</h3></div>
+          <div class="chart-wrap"><canvas id="doughnut"></canvas></div>
+          <div id="legend" class="mt-2"></div>
+        </div>
+        <div class="glass card">
+          <div class="section-title"><h3>Monthly trend</h3></div>
+          <div class="chart-wrap"><canvas id="trend"></canvas></div>
+          <p class="subtle mt-1" style="font-size:.8rem">AI forecast uses a Ridge trend model with an 80% uncertainty band.</p>
+        </div>
+      </div>
+
+      <div class="glass card mt-3">
+        <div class="section-title"><h3>Category contribution</h3></div>
+        <div class="chart-wrap sm"><canvas id="bars"></canvas></div>
+      </div>
+
+      <div class="grid cols-2 mt-3">
+        <div class="glass card">
+          <h3 class="mb-2">Top recommendations</h3>
+          <div id="recs"></div>
+          <a href="recommendations.html" class="mt-2" style="display:inline-block">See all advice →</a>
+        </div>
+        <div class="glass card">
+          <h3 class="mb-2">Ask the Eco Assistant</h3>
+          <p class="muted" style="font-size:.92rem">Get grounded answers about your footprint, without sharing personal data with the model.</p>
+          <a href="assistant.html" class="btn btn-cyber mt-2">Open assistant</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if (UI.requireAuth()) {
+      UI.renderNav("dashboard");
+      const CATS = [["transport","Transportation","#34d399"],["energy","Energy","#22d3ee"],["food","Food","#a78bfa"],["shopping","Shopping","#fbbf24"],["waste","Waste","#f87171"]];
+      let charts = {};
+
+      async function load() {
+        try {
+          const [dash, sec] = await Promise.all([
+            API.get("/dashboard"),
+            API.get("/security/status").catch(() => null),
+          ]);
+          if (sec) renderSecurity(sec);
+          if (!dash.latest_record) { document.getElementById("empty").classList.remove("hidden"); return; }
+          document.getElementById("content").classList.remove("hidden");
+          render(dash);
+        } catch (e) { console.error(e); }
+      }
+
+      function renderSecurity(s) {
+        const cls = s.account_status === "PROTECTED" ? "ok" : (s.account_status === "LOCKED" ? "danger" : "warn");
+        document.getElementById("secStatus").innerHTML =
+          `<span class="badge ${cls}"><span class="dot"></span>${s.account_status}</span>
+           <span class="badge info" style="margin-left:8px">MFA ${s.mfa_enabled ? "ON" : "OFF"}</span>`;
+      }
+
+      function render(d) {
+        document.getElementById("annual").textContent = UI.tons(d.total_annual) + " CO₂e/yr";
+        document.getElementById("annualKg").textContent = UI.kg(d.total_annual) + " CO₂e";
+        document.getElementById("monthly").textContent = Number(d.total_monthly).toFixed(0);
+        const p = d.prediction;
+        document.getElementById("forecast").textContent = p ? Number(p.predicted_next_month).toFixed(0) + " kg" : "—";
+        document.getElementById("forecastBand").textContent = p ? `80% band: ${Number(p.confidence_low||0).toFixed(0)}–${Number(p.confidence_high||0).toFixed(0)}` : "need more data";
+        document.getElementById("reduction").textContent = p && p.potential_reduction_pct != null ? Number(p.potential_reduction_pct).toFixed(1) + "%" : "—";
+
+        const perc = d.category_percentages || {};
+        const labels = CATS.map(c => c[1]);
+        const values = CATS.map(c => Number(perc[c[0]] || 0));
+        const colors = CATS.map(c => c[2]);
+
+        charts.doughnut && charts.doughnut.destroy();
+        charts.doughnut = new Chart(document.getElementById("doughnut"), {
+          type: "doughnut",
+          data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: "#05110c", borderWidth: 2 }] },
+          options: { plugins: { legend: { display: false } }, cutout: "62%" },
+        });
+        document.getElementById("legend").innerHTML = CATS.map((c,i) =>
+          `<div class="flex between" style="font-size:.88rem;padding:3px 0">
+             <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${c[2]};margin-right:8px"></span>${c[1]}</span>
+             <span class="muted">${values[i].toFixed(1)}%</span></div>`).join("");
+
+        const trend = d.monthly_trend || [];
+        charts.trend && charts.trend.destroy();
+        charts.trend = new Chart(document.getElementById("trend"), {
+          type: "line",
+          data: {
+            labels: trend.map(t => "M" + t.month),
+            datasets: [{
+              label: "kg CO₂e / month", data: trend.map(t => t.co2e),
+              borderColor: "#34d399", backgroundColor: "rgba(52,211,153,0.15)", fill: true, tension: .35, pointRadius: 3,
+            }],
+          },
+          options: { plugins: { legend: { display: false } }, scales: chartScales() },
+        });
+
+        charts.bars && charts.bars.destroy();
+        charts.bars = new Chart(document.getElementById("bars"), {
+          type: "bar",
+          data: { labels, datasets: [{ label: "% of footprint", data: values, backgroundColor: colors, borderRadius: 6 }] },
+          options: { plugins: { legend: { display: false } }, scales: chartScales() },
+        });
+
+        const recs = (d.top_recommendations || []).slice(0, 4);
+        document.getElementById("recs").innerHTML = recs.length ? recs.map(r =>
+          `<div class="flex between" style="padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06)">
+             <span style="font-size:.92rem">${escapeHtml(r.title)}</span>
+             <span class="badge ok">~${Number(r.estimated_reduction_kg).toFixed(0)} kg</span></div>`).join("")
+          : `<p class="muted">No recommendations yet.</p>`;
+      }
+
+      function chartScales() {
+        return {
+          x: { ticks: { color: "#a7c9b8" }, grid: { color: "rgba(255,255,255,.05)" } },
+          y: { ticks: { color: "#a7c9b8" }, grid: { color: "rgba(255,255,255,.05)" }, beginAtZero: true },
+        };
+      }
+      function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+      load();
+    }
+  </script>
+</body>
+</html>
